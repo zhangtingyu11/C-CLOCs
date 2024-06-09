@@ -1,0 +1,20 @@
+{
+    "configurations": [
+        {
+            "name": "Linux",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "/home/public/zty/.conda/envs/openpcdet_cu11.8/lib/python3.8/site-packages/torch/include/torch/csrc/api/include/**",
+                "/usr/local/cuda-11.8/targets/x86_64-linux/include/**",
+                "/home/public/zty/.conda/envs/openpcdet_cu11.8/lib/python3.8/site-packages/torch/include/**",
+                "/home/public/zty/.conda/envs/openpcdet_cu11.8/include/python3.8/**"
+            ],
+            "defines": [],
+            "compilerPath": "/usr/bin/clang-10",
+            "cStandard": "c17",
+            "cppStandard": "c++14",
+            "intelliSenseMode": "linux-clang-x64"
+        }
+    ],
+    "version": 4
+}

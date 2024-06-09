@@ -1,0 +1,66 @@
+
+#* 支持三种: 
+#* huge: "vit_h", "./weights/sam_vit_h_4b8939.pth"
+#* large: "vit_l", "./weights/sam_vit_l_0b3195.pth"
+#* base: "vit_b", "./weights/sam_vit_b_01ec64.pth"
+SAM_MODEL_TYPE: "vit_h"
+SAM_WEIGHT_FILE: "./weights/sam_vit_h_4b8939.pth"
+
+#* 用来存储KITTI基本数据信息的文件
+DB_INFO_PATH: "./data/kitti/image_database_train.pkl"
+
+OPENPCDET_INFO_PATH: "./data/kitti/kitti_dbinfos_train.pkl"
+
+#* 数据来源, 支持"SAM"和"KINS"
+DATA_SOURCE: "SAM"
+
+#* KINS数据集标注文件的地址
+KINS_JSON_PATH: "/home/zty/Project/DeepLearning/Amodal-Instance-Segmentation-through-KINS-Dataset/instances_train.json"
+
+#* 需要采样的类别
+CHOOSEN_CLASSES: ['Car', "Pedestrian", "Cyclist"]
+
+#* 数据集的根目录
+DATA_ROOT: "./data/kitti"
+
+#* 所选用的数据集, 目前可选的有["train", "val", "trainval"]
+SPLIT: "train"
+
+#* 以竖直向前为0度的话,KITTI的FOV范围近似为 -ANGLE_LIMIT ~ ANGLE_LIMIT
+ANGLE_LIMIT: 45
+
+#* 距离LiDAR的最远距离, 范围为0~RANGE_LIMIT
+RANGE_LIMIT: 80
+
+#* 距离方向要划分多少个网格, 越大粒度越细
+RANGE_NUM: 100
+
+#* LiDAR线数
+LIDAR_LINES: 64
+
+#* 采样的GT的个数
+GT_SAMPLING_NUM: 15
+
+#* 画布的大小
+FIG_SIZE: [20, 20]
+
+#* 中心点位置
+CENTER: [0, 0]
+
+#* 三种不同区域的颜色划分
+DIRECT_OCCUPIED_COLOR: 'r'
+INDIRECT_OCCUPIED_COLOR: 'b'
+FREE_SAPCE_COLOR: 'g'
+
+#* 选择的frame id
+CHOOSEN_FRAME_ID: '001259'
+
+#* IOF的阈值
+IOF_THRESH: 0.5
+
+HEIGHT_LIMIT: 0.5
+
+#* KINS过滤的IoU阈值
+KINS_IOU_THRESH: 0.7
+
+

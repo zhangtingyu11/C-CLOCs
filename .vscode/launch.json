@@ -1,0 +1,261 @@
+{
+    // 使用 IntelliSense 了解相关属性。 
+    // 悬停以查看现有属性的描述。
+    // 欲了解更多信息，请访问: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "生成nuscense数据",
+            "type": "python",
+            "request": "launch",
+            "module": "pcdet.datasets.nuscenes.nuscenes_dataset", 
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args":[
+                "--func", 
+                "create_nuscenes_infos", 
+                "--cfg_file", 
+                "tools/cfgs/dataset_configs/nuscenes_dataset.yaml", 
+                "--version", 
+                "v1.0-trainval"
+            ]
+        },
+        {
+            "name": "Train second clocs",
+            "type": "python",
+            "request": "launch",
+            "cwd": "${workspaceFolder}/tools",
+            "program": "train.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                "--cfg_file",
+                "cfgs/kitti_models/second_car_clocs.yaml",
+                "--pretrained_model",
+                "../output/kitti_models/second_car/origin/ckpt/checkpoint_epoch_80.pth",
+                "--fix_random_seed",
+                "6811"
+            ]
+        },
+        {
+            "name": "Train VoxelRCNN clocs",
+            "type": "python",
+            "request": "launch",
+            "cwd": "${workspaceFolder}/tools",
+            "program": "train.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                "--cfg_file",
+                "cfgs/kitti_models/voxel_rcnn_car_clocs.yaml",
+                "--pretrained_model",
+                "../output/kitti_models/voxel_rcnn_car/origin_seed6811/ckpt/checkpoint_epoch_80.pth",
+            ]
+        },
+        {
+            "name": "Train voxel rcnn",
+            "type": "python",
+            "request": "launch",
+            "cwd": "${workspaceFolder}/tools",
+            "program": "train.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                "--cfg_file",
+                "cfgs/kitti_models/voxel_rcnn_car.yaml",
+            ]
+        },
+        {
+            "name": "Test voxel rcnn",
+            "type": "python",
+            "request": "launch",
+            "cwd": "${workspaceFolder}/tools",
+            "program": "train.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                "--cfg_file",
+                "cfgs/kitti_models/voxel_rcnn_car.yaml",
+                "--batch_size",
+                "1",
+                "--ckpt",
+                "../output/kitti_models/voxel_rcnn_car/origin_seed6811/ckpt/checkpoint_epoch_80.pth"
+            ]
+        },
+        {
+            "name": "Train second clocs contra fusion aug",
+            "type": "debugpy",
+            "request": "launch",
+            "cwd": "${workspaceFolder}/tools",
+            "program": "train.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                "--cfg_file",
+                "cfgs/kitti_models/second_car_clocs_contra_fusion_aug.yaml",
+                "--pretrained_model",
+                "../output/kitti_models/second_car/origin/ckpt/checkpoint_epoch_71.pth",
+                "--fix_random_seed",
+                "666",
+            ],
+            ""
+        },
+        {
+            "name": "Test second",
+            "type": "python",
+            "request": "launch",
+            "cwd": "${workspaceFolder}/tools",
+            "program": "test.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                "--cfg_file",
+                "../output/kitti_models/second_car/origin/second_car.yaml",
+                "--batch_size",
+                "1",
+                "--ckpt",
+                "../output/kitti_models/second_car/origin/ckpt/checkpoint_epoch_71.pth"
+            ]
+        },
+        {
+            "name": "Test SECOND C-CLOCs",
+            "type": "python",
+            "request": "launch",
+            "cwd": "${workspaceFolder}/tools",
+            "program": "test.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "args": [
+                "--cfg_file",
+                "cfgs/kitti_models/second_car_clocs_contra_fusion_aug.yaml",
+                "--batch_size",
+                "1",
+                "--ckpt",
+                "/home/zty/Project/DeepLearning/OpenPCDet/output/kitti_models/second_car_clocs_contra_fusion_aug/use_all_with_resblock/ckpt/checkpoint_epoch_10.pth"
+            ]
+        },
+        {
+            "name": "Test Voxel C-CLOCs",
+            "type": "python",
+            "request": "launch",
+            "cwd": "${workspaceFolder}/tools",
+            "program": "test.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "args": [
+                "--cfg_file",
+                "/home/zty/Project/DeepLearning/OpenPCDet/tools/cfgs/kitti_models/voxel_rcnn_car_clocs_fusion_aug.yaml",
+                "--batch_size",
+                "1",
+                "--ckpt",
+                "/home/zty/Project/DeepLearning/OpenPCDet/output/kitti_models/voxel_rcnn_car_clocs_fusion_aug/default/ckpt/checkpoint_epoch_1.pth"
+            ]
+        },
+        {
+            "name": "Test Voxel CLOCs",
+            "type": "python",
+            "request": "launch",
+            "cwd": "${workspaceFolder}/tools",
+            "program": "test.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "args": [
+                "--cfg_file",
+                "/home/zty/Project/DeepLearning/OpenPCDet/tools/cfgs/kitti_models/voxel_rcnn_car_clocs.yaml",
+                "--batch_size",
+                "1",
+                "--ckpt",
+                "/home/zty/Project/DeepLearning/OpenPCDet/output/kitti_models/voxel_rcnn_car_clocs/default/ckpt/checkpoint_epoch_1.pth"
+            ]
+        },
+        {
+            "name": "Test SECOND_CLOCs",
+            "type": "python",
+            "request": "launch",
+            "cwd": "${workspaceFolder}/tools",
+            "program": "test.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "args": [
+                "--cfg_file",
+                "/home/zty/Project/DeepLearning/OpenPCDet/tools/cfgs/kitti_models/second_car_clocs.yaml",
+                "--batch_size",
+                "1",
+                "--ckpt",
+                "/home/zty/Project/DeepLearning/OpenPCDet/output/kitti_models/second_car_clocs/origin/ckpt/checkpoint_epoch_1.pth"
+            ]
+        },
+        {
+            "name": "Generate_mask",
+            "type": "python",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "program": "tools/generate_mask.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+        },
+        {
+            "name": "Generate_mask_nuscenes",
+            "type": "python",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "program": "tools/generate_mask_nuscenes.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+        },
+        {
+            "name": "Search Valid Space",
+            "type": "python",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "program": "tools/search_valid_space.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+        },
+        {
+            "name": "Statistic",
+            "type": "python",
+            "request": "launch",
+            "cwd": "${workspaceFolder}/tools",
+            "program": "statistics.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+        },
+        {
+            "name": "kitti2coco",
+            "type": "python",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "program": "tools/kitti2coco.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+        },
+        {
+            "name": "auto_train_mmdet",
+            "type": "python",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "program": "tools/train_clocs.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+        },
+        {
+            "name": "auto_train_mmdet_nuscenes",
+            "type": "python",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "program": "tools/train_clocs_nuscenes.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+        },
+        {
+            "name": "choose_best_coco",
+            "type": "python",
+            "request": "launch",
+            "cwd": "${workspaceFolder}/mmdetection/tools",
+            "program": "choose_best.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+        },
+    ]
+}
