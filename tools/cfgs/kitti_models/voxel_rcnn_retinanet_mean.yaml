@@ -1,0 +1,104 @@
+# Reconstructed from voxel_rcnn_car.yaml and the published SECOND fusion setup.
+_BASE_CONFIG_: cfgs/kitti_models/voxel_rcnn_car.yaml
+
+DATA_CONFIG:
+    _BASE_CONFIG_: cfgs/dataset_configs/kitti_dataset.yaml
+    DATA_AUGMENTOR:
+        DISABLE_AUG_LIST: ['placeholder', 'random_world_flip', 'random_world_rotation', 'random_world_scaling', 'gt_sampling']
+        AUG_CONFIG_LIST:
+            - NAME: fusion_gt_sampling
+              USE_ROAD_PLANE: True
+              CFG_PATH: "./cfgs/dataset_configs/database_generate_kitti.yaml"
+              DB_INFO_PATH:
+                  - image_database_train.pkl
+              PREPARE: {
+                  filter_by_min_points: ['Car:5'],
+                  filter_by_difficulty: [-1],
+              }
+              IMG_AUG_TYPE: 'clocs'
+              SAMPLE_GROUPS: ['Car:20']
+              NUM_POINT_FEATURES: 4
+              DATABASE_WITH_FAKELIDAR: False
+              REMOVE_EXTRA_WIDTH: [0.0, 0.0, 0.0]
+              LIMIT_WHOLE_SCENE: True
+    GET_ITEM_LIST: ["points", "images", "gt_boxes2d"]
+    DATA_PROCESSOR:
+    - NAME: mask_points_and_boxes_outside_range
+      REMOVE_OUTSIDE_BOXES: True
+
+    - NAME: shuffle_points
+      SHUFFLE_ENABLED: {
+        'train': False,
+        'test': False
+      }
+
+    - NAME: transform_points_to_voxels
+      VOXEL_SIZE: [0.05, 0.05, 0.1]
+      MAX_POINTS_PER_VOXEL: 5
+      MAX_NUMBER_OF_VOXELS: {
+        'train': 40000,
+        'test': 40000
+      }
+
+MODEL:
+    NAME: ClocsNet
+    DETECTOR_2D:
+        NAME: MMDetCustomModel
+        IMAGE_DETECTOR_CONFIG_FILE: ../weights/retinanet_r18_kitti_car.py
+        IMAGE_DETECTOR_WEIGHTS_FILE: ../weights/retinanet_r18_kitti_car_epoch12.pth
+        USE_GT: False
+    ROI_HEAD:
+        NMS_CONFIG:
+            TRAIN:
+                NMS_PRE_MAXSIZE: 4096
+                NMS_POST_MAXSIZE: 200
+                NMS_THRESH: 0.15
+            TEST:
+                NMS_PRE_MAXSIZE: 4096
+                NMS_POST_MAXSIZE: 200
+                NMS_THRESH: 0.15
+    FUSION_HEAD:
+        NAME: ClocsVoxelRCNNHead
+        CLASS_AGNOSTIC: False
+        AVERAGE_WITH_ROI_SCORE: True
+        TRAIN_ON_AVERAGE_SCORE: True
+        CHANNEL_FIRST_EMBEDDING: True
+        USE_RES_BLOCK: True
+        INPUT_FEATURES: 5
+        NUM_FILTERS: [18, 36, 36, 1]
+        IMAGE_NUM_FILTERS: [16, 32]
+        LIDAR_NUM_FILTERS: [16, 32]
+        IMAGE_INPUT_CHANNELS: 5
+        LIDAR_INPUT_CHANNELS: 8
+        CONTRA_MATCH_IOU: 0.5
+        IOU_THRESH: 0.3
+        CLOCS_POS_IOU_THRESH: 0.5
+        CLOCS_NEG_IOU_THRESH: 0.2
+        USE_CONTRA: True
+        USE_LA: True
+        TARGET_ASSIGNER_CONFIG:
+            NAME: PredAxisAlignedTargetAssigner
+            BOX_CODER: ResidualCoder
+            MATCH_HEIGHT: False
+            POS_FRACTION: -1.0
+            SAMPLE_SIZE: 512
+            NORM_BY_NUM_EXAMPLES: False
+        ANCHOR_GENERATOR_CONFIG:
+            - class_name: Car
+              anchor_sizes: [[3.9, 1.6, 1.56]]
+              anchor_rotations: [0, 1.57]
+              anchor_bottom_heights: [-1.78]
+              align_center: false
+              feature_map_stride: 8
+              matched_threshold: 0.7
+              unmatched_threshold: 0.5
+        LOSS_CONFIG:
+            LOSS_WEIGHTS: {cls_weight: 1.0, contra_weight: 0.1}
+    POST_PROCESSING:
+        SCORE_THRESH: 0.40
+        OUTPUT_RAW_SCORE: False
+
+OPTIMIZATION:
+    BATCH_SIZE_PER_GPU: 1
+    NUM_EPOCHS: 10
+    LR: 0.003

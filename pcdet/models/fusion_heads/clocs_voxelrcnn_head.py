@@ -2,7 +2,6 @@ import numpy as np
 import torch.nn as nn
 from ...utils.box_utils import boxes3d_lidar_to_kitti_camera, lidar_boxes_to_image_kitti_torch_cuda
 from ...ops.clocs.clocs_utils import compute_clocs_iou_sparse
-from ...ops.clocs.clocs_utils import cos_similarity
 from ..dense_heads.anchor_head_template import AnchorHeadTemplate
 import torch
 import numba
@@ -259,8 +258,8 @@ class ClocsVoxelRCNNHead(AnchorHeadTemplate):
         boxes_2d_num = boxes2d_by_detector.shape[1]
         cls_pred_list = []
         if self.model_cfg.USE_CONTRA:
-          lidar_feature_expanded_list = []
-          image_feature_expanded_list = []
+          similarities = []
+          contrastive_labels = []
         for box_2d_preds, box_2d_detector, scores_3d, dist_to_lidar_single, image_shape, lidar_pred in zip(box_preds_on_image, 
                                                                                     boxes2d_by_detector,
                                                                                     pred_3d_scores,
@@ -303,58 +302,41 @@ class ClocsVoxelRCNNHead(AnchorHeadTemplate):
               lidar_pred_normalized[:, 0]/=70.4
               lidar_pred_normalized[:, 1]/=80
               lidar_pred_normalized[:, 2]/=4
-              lidar_data = torch.cat([lidar_pred_normalized, scores_3d], dim=-1).permute(0, 1).reshape(1, -1, preds.shape[1], 1)
-              image_data = box_2d_detector_normalized.permute(0, 1).reshape(1, -1, 1, boxes2d_by_detector.shape[1])
-              lidar_features = self.lidar_extractor(lidar_data).squeeze(0)
-              image_features = self.image_extractor(image_data).squeeze(0)
-              lidar_features = lidar_features.squeeze().transpose(0, 1).unsqueeze(1).contiguous()
-              image_features = image_features.squeeze().transpose(0, 1).unsqueeze(0).contiguous()
-              lidar_num = lidar_features.shape[0]
-              image_num = image_features.shape[1]
-              feature_dim = image_features.shape[-1]
-              lidar_feature_expanded = lidar_features.expand(lidar_num, image_num, feature_dim)
-              image_feature_expanded = image_features.expand(lidar_num, image_num, feature_dim) 
+              lidar_input = torch.cat([lidar_pred_normalized, scores_3d], dim=-1)
+              if self.model_cfg.get('CHANNEL_FIRST_EMBEDDING', False):
+                  lidar_data = lidar_input.T[None, :, :, None]
+                  image_data = box_2d_detector_normalized.T[None, :, None, :]
+              else:
+                  # Preserve the feature layout used by existing Voxel fusion checkpoints.
+                  lidar_data = lidar_input.reshape(1, -1, boxes_3d_num, 1)
+                  image_data = box_2d_detector_normalized.reshape(1, -1, 1, boxes_2d_num)
+              lidar_embeddings = self.lidar_extractor(lidar_data)[0, :, :, 0].T
+              image_embeddings = self.image_extractor(image_data)[0, :, 0, :].T
+              similarity = F.normalize(lidar_embeddings, dim=1) @ F.normalize(image_embeddings, dim=1).T
+              input_features = torch.cat([ious, similarity[None, None]], dim=1)
+              if self.training:
+                  similarities.append(similarity)
+                  contrastive_labels.append(ious[0, 0] > self.model_cfg.CONTRA_MATCH_IOU)
 
-              lidar_feature_expanded_list.append(lidar_feature_expanded.view(1, *lidar_feature_expanded.shape))
-              image_feature_expanded_list.append(image_feature_expanded.view(1, *image_feature_expanded.shape))
-
-              sim_feature = torch.zeros(lidar_num, image_num, device = 0)
-              cos_similarity(lidar_features, image_features, sim_feature)
-              sim_feature = sim_feature[None, None, :, :]
-              # sim_feature = F.cosine_similarity(lidar_feature_expanded, image_feature_expanded, -1)[None, None, :, :]
-              input_features = torch.cat([input_features, sim_feature], dim=1)
-
-            # if (self.cal_loss_flag):
-            non_empty_input_features = (input_features[:, :, non_empty_mask[:, 0], non_empty_mask[:, 1]]).unsqueeze(2)
-            new_res = self.fuse(non_empty_input_features)
-            res = torch.zeros((1, 1, boxes_3d_num, boxes_2d_num), dtype=torch.float32, device=0)-100
-            res[:, :, non_empty_mask[:, 0], non_empty_mask[:, 1]] = new_res.squeeze(2)
-            # else:
-            # res = torch.zeros((1, 1, boxes_3d_num, boxes_2d_num)).type(torch.float32).cuda()-100
+            res = input_features.new_full((1, 1, boxes_3d_num, boxes_2d_num), -100)
+            if non_empty_mask.numel():
+                i, j = non_empty_mask.unbind(dim=1)
+                pairs = input_features[:, :, i, j].unsqueeze(2)
+                # The residual head uses BatchNorm2d, including on a single matched pair.
+                if self.training and pairs.shape[-1] == 1 and self.model_cfg.get('USE_RES_BLOCK', False):
+                    pairs = pairs.expand(-1, -1, -1, 2)
+                res[:, :, i, j] = self.fuse(pairs).squeeze(2)[:, :, :i.numel()]
+            elif self.training:
+                res = res + self.fuse[-1].weight.sum() * 0
 
             #* 相当于maxpooling
             output = torch.amax(res, dim = -1)
             output = output.squeeze().view(1,-1,1)
             cls_pred_list.append(output)
         cls_preds = torch.cat(cls_pred_list, dim=0)
-        if self.model_cfg.USE_CONTRA:
-          self.forward_ret_dict['lidar_features_expanded'] = torch.cat(lidar_feature_expanded_list, dim=0)
-          self.forward_ret_dict['image_features_expanded'] = torch.cat(image_feature_expanded_list, dim=0)
-
-          #* iou大于阈值的位置
-          iou_mask = ious[:, 0:1, :, :] > self.model_cfg.CONTRA_MATCH_IOU
-
-          # #* 根据置信度找到每行最大值的索引
-          # iou = ious[0, 0, :, :]
-          # max_iou_indices3d = torch.argmax(iou, dim=1)
-          
-          # lidar_label3d = torch.zeros(boxes_3d_num, boxes_2d_num, dtype=torch.bool)
-
-          # #* 将每行中IOU大于阈值且置信度最大的位置置为1
-          # row_indices3d = torch.arange(boxes_3d_num)
-          # lidar_label3d[row_indices3d, max_iou_indices3d] = True
-          # lidar_label3d = lidar_label3d.view(1, 1, boxes_3d_num, boxes_2d_num)
-          self.forward_ret_dict['contrastive_label'] = iou_mask
+        if self.training and self.model_cfg.USE_CONTRA:
+            self.forward_ret_dict['similarities'] = torch.stack(similarities)
+            self.forward_ret_dict['contrastive_label'] = torch.stack(contrastive_labels)
 
         self.forward_ret_dict['cls_preds'] = cls_preds
 
@@ -372,9 +354,10 @@ class ClocsVoxelRCNNHead(AnchorHeadTemplate):
             self.forward_ret_dict.update(targets_dict)
             
         if not self.training or self.predict_boxes_when_training:
-            data_dict['batch_cls_preds'] = cls_preds
+            average = not self.training and self.model_cfg.get('AVERAGE_WITH_ROI_SCORE', False)
+            data_dict['batch_cls_preds'] = (pred_3d_scores + cls_preds.sigmoid()) * 0.5 if average else cls_preds
             data_dict['batch_box_preds'] = preds
-            data_dict['cls_preds_normalized'] = False
+            data_dict['cls_preds_normalized'] = average
 
         return data_dict
     
@@ -463,6 +446,9 @@ class ClocsVoxelRCNNHead(AnchorHeadTemplate):
         cls_weights /= torch.clamp(pos_normalizer, min=1.0)
         
         #* 用focal loss计算损失
+        if self.model_cfg.get('TRAIN_ON_AVERAGE_SCORE', False):
+            roi_prob = self.forward_ret_dict['preds_3d'].detach().sigmoid()
+            cls_preds = torch.logit((roi_prob + cls_preds.sigmoid()) * 0.5, eps=1e-6)
         cls_losses = focal_loss._compute_loss(cls_preds, one_hot_targets, cls_weights.cuda())  # [N, M]
         
         batch_size = int(cls_preds.shape[0])
@@ -476,10 +462,9 @@ class ClocsVoxelRCNNHead(AnchorHeadTemplate):
         return cls_loss, tb_dict
 
     def get_contra_loss(self):
-        lidar_feature_expanded = self.forward_ret_dict['lidar_features_expanded']
-        image_feature_expanded = self.forward_ret_dict['image_features_expanded']
-        contra_label = self.forward_ret_dict['contrastive_label'].squeeze().int()
-        contra_loss = self.contra_loss_func(lidar_feature_expanded, image_feature_expanded, contra_label)
+        similarity = self.forward_ret_dict['similarities']
+        labels = self.forward_ret_dict['contrastive_label'].to(similarity.dtype)
+        contra_loss = self.contra_loss_func(labels, similarity)
         contra_loss = contra_loss * self.model_cfg.LOSS_CONFIG.LOSS_WEIGHTS['contra_weight']
         tb_dict = {
             'contra_loss': contra_loss
@@ -494,7 +479,7 @@ class ClocsVoxelRCNNHead(AnchorHeadTemplate):
 
         """
         targets_dict = self.target_assigner.assign_targets(
-            [preds.reshape([1, 1, 1, 1, 100, 7])], gt_boxes
+            [preds.reshape([1, 1, 1, 1, preds.shape[1], 7])], gt_boxes
         )
         return targets_dict
     def get_target_assigner(self, anchor_target_cfg):
